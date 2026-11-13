@@ -120,7 +120,7 @@ check "-c includes the command line" $'$ echo with-cmd\nwith-cmd' "$(copy -c)"
 run 'echo printed'
 rm -f $tmp/clip
 run "copylast -p > $tmp/printed"
-check "-p prints instead of copying" "printed" "$(<$tmp/printed)"
+check "-p prints instead of copying" "printed" "$(cat $tmp/printed)"
 check "-p leaves the clipboard alone" "no" "$([[ -e $tmp/clip ]] && print yes || print no)"
 
 run 'true'
@@ -136,10 +136,10 @@ check "refuses after the pane was resized" \
 $T resize-window -t t -x 80
 
 run "copylast --version > $tmp/version"
-check "--version" "copylast $(sed -n 's/^typeset -g COPYLAST_VERSION=//p' $root/copylast.plugin.zsh)" "$(<$tmp/version)"
+check "--version" "copylast $(sed -n 's/^typeset -g COPYLAST_VERSION=//p' $root/copylast.plugin.zsh)" "$(cat $tmp/version)"
 
 run "copylast --bogus 2> $tmp/err; print \$? > $tmp/rc"
-check "rejects unknown options" "2" "$(<$tmp/rc)"
+check "rejects unknown options" "2" "$(cat $tmp/rc)"
 
 run "(TMUX= copylast) 2> $tmp/err"
 check "explains that tmux is required" "copylast: needs to run inside tmux" "$(err)"
