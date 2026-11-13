@@ -1,0 +1,40 @@
+name: Bug report
+description: copylast copied the wrong thing, nothing, or errored
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: The command you ran before `copylast`, what got copied, and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a tmux pane
+        2. Run `...`
+        3. Run `copylast`
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Output of `copylast -V; zsh --version; tmux -V`
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: OS and terminal
+      placeholder: macOS 15, Ghostty
+    validations:
+      required: true
+  - type: input
+    id: prompt
+    attributes:
+      label: Prompt / plugin manager
+      placeholder: Starship, Oh My Zsh
