@@ -2,7 +2,7 @@
 
 # copylast
 
-**Copy the output of the last command to your clipboard. No re-running, no mouse, no copy mode.**
+**TL;DR: copy the output of your last command.**
 
 [![CI](https://github.com/salimmohamed/copylast/actions/workflows/ci.yml/badge.svg)](https://github.com/salimmohamed/copylast/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/salimmohamed/copylast?sort=semver)](https://github.com/salimmohamed/copylast/releases)
@@ -16,17 +16,22 @@
 
 ---
 
-You ran a command. The output is right there. Now you want it in a bug report, a
-chat message, or a prompt. The usual options are all a bit bad:
+I kept running into the same issue where I'd run a command and want to give the
+output to an LLM, and every way of doing that was kind of annoying:
 
 | Approach | Problem |
 | --- | --- |
-| `!! \| pbcopy` | Runs the command **again**: slow, side effects, possibly different output |
-| Drag-select with the mouse | Painful once the output scrolls past one screen |
-| tmux copy mode | Several keystrokes to find the start and end every time |
+| `!! \| pbcopy` | Runs the whole command **again**, which is slow and can give you different output |
+| Selecting with the mouse | Fine for 5 lines, not for 200 |
+| tmux copy mode | Works, but it's a bunch of keystrokes every single time |
 
-`copylast` reads the previous command's output straight out of the tmux
-scrollback, so it is instant and copies exactly what you saw.
+I figured someone had already made this, and kind of.
+[Zellij](https://zellij.dev/documentation/shell-integration.html) has it built
+in, and there are tmux tools like [tgrab](https://github.com/diffficult/tgrab)
+and [tmux-snaglord](https://github.com/raine/tmux-snaglord) that find commands by
+looking for your prompt. But I use tmux with a two-line Starship prompt, so none
+of them really worked for me. So I made `copylast`. It just reads the last command's output straight out of tmux's
+scrollback, so it's instant and you get exactly what you saw.
 
 ```console
 $ cargo test
@@ -35,13 +40,13 @@ $ copylast
 copied 214 lines from cargo test
 ```
 
-## Features
+## What it does
 
-- **Exact output, no re-run.** Copies what is already on screen, even after it has scrolled away.
-- **Clean text.** Colors are stripped, wrapped lines are joined back together, and zsh's `%` end-of-line mark is removed.
-- **Works everywhere tmux does.** macOS, Linux (Wayland and X11), WSL, and over SSH through OSC 52.
-- **Zero overhead you'll notice.** One tiny `tmux` query before and after each command.
-- **No dependencies.** One zsh file, no compiled helpers.
+- **Copies exactly what you saw.** Even if it scrolled off screen. It never re-runs anything.
+- **Cleans it up.** Colors are gone, wrapped lines get joined back together, and zsh's random `%` at the end is removed.
+- **Works pretty much anywhere tmux does.** macOS, Linux (Wayland and X11), WSL, and over SSH through OSC 52.
+- **You won't notice it's there.** It's two quick `tmux` calls per command.
+- **It's just one zsh file.** No dependencies.
 
 ## Requirements
 
@@ -105,7 +110,7 @@ zplug "salimmohamed/copylast"
 
 </details>
 
-Open a new tmux pane (or run `exec zsh`) to start using it.
+Then open a new tmux pane (or run `exec zsh`) and you're good.
 
 ## Usage
 
@@ -121,17 +126,18 @@ copylast [-p] [-c] [-h] [-V]
 | `copylast -V` | Show the version |
 | `copylast -h` | Show help |
 
-Running `copylast` (or an alias of it) never replaces the remembered output, so
-you can run it as many times as you like. Pressing Enter on an empty line
-doesn't replace it either.
+You can run `copylast` as many times as you want. It won't overwrite what it
+remembered, and neither will hitting Enter on an empty line.
 
 ### Shorter name
+
+If `copylast` is too long to type:
 
 ```zsh
 alias cl=copylast
 ```
 
-Aliases of `copylast` are recognised and ignored automatically.
+It knows aliases of itself, so `cl` won't overwrite anything either.
 
 ## Configuration
 
@@ -156,61 +162,65 @@ Without `COPYLAST_CLIPBOARD_CMD`, the first match wins:
 
 ## How it works
 
-1. A `preexec` hook asks tmux where the cursor is (`history_size + cursor_y`)
-   just before a command runs. That is the first line of its output.
-2. A `precmd` hook asks again right after it finishes. That is the line after the last line of output.
-3. `copylast` converts those absolute positions back to scrollback offsets and
-   runs `tmux capture-pane -p -J` over exactly that range.
+It's honestly pretty simple:
 
-Nothing wraps or redirects your commands, so interactive programs, colors and
-TTY detection behave exactly as before.
+1. Right before a command runs, a `preexec` hook asks tmux where the cursor is
+   (`history_size + cursor_y`). That's where the output starts.
+2. Right after it finishes, a `precmd` hook asks again. That's where it ends.
+3. `copylast` turns those into scrollback offsets and runs
+   `tmux capture-pane -p -J` over just that range.
+
+It never wraps or redirects your commands, so vim, colors, and anything that
+checks whether it's in a terminal all work exactly like before.
 
 ## Limitations
 
-- **tmux only.** Outside tmux the hooks aren't installed and `copylast` explains why.
-- **zsh only.** bash support would need a different hook mechanism. Contributions are welcome.
-- **Resizing the pane** after a command runs makes tmux re-wrap the scrollback,
-  so `copylast` refuses rather than copying the wrong lines.
-- **Very long sessions:** when a pane's scrollback reaches tmux's
-  `history-limit` *while a command is running*, tmux drops old lines and the
-  copied range can be off. Raise `history-limit` if you hit this.
-- **Full-screen programs** (vim, less, htop) use the alternate screen, so there's no output to copy.
-- **Redrawing output** such as progress bars is copied as its final state on screen.
-- Trailing whitespace and trailing blank lines are trimmed.
+Some stuff it can't do (yet):
+
+- **tmux only.** Outside tmux it just tells you it needs tmux.
+- **zsh only.** bash would need a different way to hook in. If you want to take a shot at it, PRs are welcome.
+- **Resizing the pane** after a command makes tmux re-wrap everything, so
+  `copylast` refuses instead of copying the wrong lines.
+- **Really long sessions:** if your scrollback hits tmux's `history-limit`
+  *while a command is running*, tmux drops old lines and the range can be off.
+  Bumping `history-limit` fixes it.
+- **Full-screen stuff** like vim, less, or htop doesn't leave any output behind, so there's nothing to copy.
+- **Progress bars** and anything else that redraws itself get copied as whatever's on screen at the end.
+- Trailing whitespace and blank lines at the end get trimmed.
 
 ## FAQ
 
 <details>
 <summary><b>Does it slow down my prompt?</b></summary>
 
-Each command adds two `tmux display-message` calls, roughly 2–5 ms each. That's
-well below anything you'd notice.
+Not really. Each command adds two `tmux display-message` calls, around 2–5 ms
+each. You won't notice it.
 
 </details>
 
 <details>
 <summary><b>Does it work over SSH?</b></summary>
 
-Yes, if tmux runs on the remote machine and the plugin is installed there. With
-no clipboard tool available it falls back to OSC 52, which your local terminal
-turns into a clipboard write.
+Yes, as long as tmux is running on the remote machine and the plugin is
+installed there. If there's no clipboard tool, it falls back to OSC 52 and your
+local terminal does the actual copying.
 
 </details>
 
 <details>
 <summary><b>Why not use terminal "semantic prompts" (OSC 133)?</b></summary>
 
-Those marks are read by the outer terminal, which can't see past tmux, and tmux
-only uses them for copy-mode navigation, not anything a script can query. Tracking positions in tmux directly works
-with every terminal and every prompt theme, including Starship, Powerlevel10k
-and Pure.
+I looked into this. Those marks go to your outer terminal, which can't see inside
+tmux, and tmux only uses them for jumping around in copy mode. Tracking positions
+in tmux directly just works with any terminal and any prompt: Starship,
+Powerlevel10k, Pure, whatever you use.
 
 </details>
 
 ## Contributing
 
-Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md)
-for how to run the test suite.
+Bug reports and PRs are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) has how to
+run the tests.
 
 ## License
 
